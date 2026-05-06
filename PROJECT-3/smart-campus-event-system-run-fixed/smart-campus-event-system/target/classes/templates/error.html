@@ -1,0 +1,1 @@
+<!DOCTYPE html><html xmlns:th="http://www.thymeleaf.org"><head><title>Error</title><link rel="stylesheet" th:href="@{/css/style.css}"></head><body><div th:replace="~{fragments :: nav}"></div><main class="auth"><div class="glass form"><h1>Something went wrong</h1><p th:text="${message}"></p><a class="btn" th:href="@{/}">Go Home</a></div></main></body></html>

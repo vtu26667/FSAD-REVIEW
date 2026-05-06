@@ -1,0 +1,18 @@
+package com.smartcampus.controller;
+import com.smartcampus.entity.*;import com.smartcampus.repository.*;import com.smartcampus.service.*;import jakarta.servlet.http.HttpServletResponse;import jakarta.validation.Valid;import org.springframework.beans.factory.annotation.Autowired;import org.springframework.security.core.Authentication;import org.springframework.stereotype.Controller;import org.springframework.ui.Model;import org.springframework.validation.BindingResult;import org.springframework.web.bind.annotation.*;import java.io.IOException;
+@Controller
+public class HomeController{
+ @Autowired EventRepository events; @Autowired RegistrationRepository regs; @Autowired UserService users; @Autowired PdfService pdf;
+ @GetMapping("/") String home(Model m){m.addAttribute("events",events.findAll());return "index";}
+ @GetMapping("/events") String events(Model m,@RequestParam(defaultValue="")String department,@RequestParam(defaultValue="")String type){m.addAttribute("events",department.isBlank()&&type.isBlank()?events.findAll():events.findByDepartmentContainingIgnoreCaseAndTypeContainingIgnoreCase(department,type));return "events";}
+ @GetMapping("/register") String register(Model m){m.addAttribute("user",new User());return "register";}
+ @PostMapping("/register") String save(@Valid @ModelAttribute User user, BindingResult br, Model m){if(br.hasErrors())return "register"; try{users.register(user);m.addAttribute("email",user.getEmail());return "verify";}catch(Exception e){m.addAttribute("error","Email already exists or invalid data");return "register";}}
+ @GetMapping("/verify") String verifyPage(){return "verify";}
+ @PostMapping("/verify") String verify(@RequestParam String email,@RequestParam String otp,Model m){if(users.verify(email,otp)){m.addAttribute("success","OTP verified. Login now.");return "login";}m.addAttribute("error","Invalid OTP. Check console if mail is disabled.");m.addAttribute("email",email);return "verify";}
+ @GetMapping("/login") String login(){return "login";}
+ @GetMapping("/dashboard") String dash(Authentication auth,Model m){User u=users.byEmail(auth.getName()).orElseThrow();m.addAttribute("user",u);m.addAttribute("registrations",regs.findByUser(u));m.addAttribute("events",events.findAll());return u.getRole()==Role.ADMIN?"redirect:/admin/dashboard":"dashboard";}
+ @GetMapping("/events/{id}/register") String registerEventForm(@PathVariable Long id,Authentication auth,Model m){User u=users.byEmail(auth.getName()).orElseThrow();Event e=events.findById(id).orElseThrow();EventRegistration r=new EventRegistration();r.setFullName(u.getName());r.setPersonalEmail(u.getEmail());m.addAttribute("event",e);m.addAttribute("registration",r);return "event-register";}
+ @PostMapping("/events/{id}/register") String reg(@PathVariable Long id,@Valid @ModelAttribute("registration") EventRegistration r,BindingResult br,Authentication auth,Model m){User u=users.byEmail(auth.getName()).orElseThrow();Event e=events.findById(id).orElseThrow();if(br.hasErrors()){m.addAttribute("event",e);return "event-register";}if(!regs.existsByUserAndEvent(u,e)){r.setUser(u);r.setEvent(e);r.setStatus("CONFIRMED");regs.save(r);}return "redirect:/dashboard";}
+ @GetMapping("/ticket/{id}") void ticket(@PathVariable Long id,HttpServletResponse res)throws IOException{EventRegistration r=regs.findById(id).orElseThrow();res.setContentType("application/pdf");res.setHeader("Content-Disposition","attachment; filename=smart-campus-ticket-"+id+".pdf");res.getOutputStream().write(pdf.ticket(r));}
+ @PostMapping("/feedback/{id}") String feedback(@PathVariable Long id,@RequestParam String feedback){EventRegistration r=regs.findById(id).orElseThrow();r.setFeedback(feedback);regs.save(r);return "redirect:/dashboard";}
+}
